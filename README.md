@@ -3,6 +3,13 @@ Kub Firmware
 
 Firmware for the kub
 
+### Requirements
+
+ - Adafruit_NeoPixel.h
+ - OneWire.h
+ - ESP8266WiFi.h
+ - PubSubClient.h
+
 ### Microcontroller pinout
 
 Pin 2:  OneWire for DS1820
