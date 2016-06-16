@@ -1,114 +1,100 @@
+#include <Adafruit_NeoPixel.h>
+#include <OneWire.h>
 #include <ESP8266WiFi.h>
 #include <PubSubClient.h>
-#include "OneWire.h"
+#include "constants.h"
+#include "mqtt.h"
+#include "temperature.h"
 
-#define KUB_ID "944db936-47aa-43e8-b404-ef5ca9b15756"
-#define WIFI_SSID "SAMBA"
-#define WIFI_PASSWORD ""
-#define MQTT_SERVER "home.jk-5.nl"
+Adafruit_NeoPixel pixels = Adafruit_NeoPixel(2, 14, NEO_GRB + NEO_KHZ800);
 
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-OneWire ds(2);
+byte mode = 1;
 
 void setup() {
-  pinMode(BUILTIN_LED, OUTPUT);
   Serial.begin(115200);
+  pixels.begin();
   
-  delay(10);
-
-  //WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  //while (WiFi.status() != WL_CONNECTED) {
-  //  delay(500);
-  //}
+  pinMode(4, INPUT);
   
-  //client.setServer(MQTT_SERVER, 1883);
-  //client.setCallback(callback);
+  setupTemperatureSensor();
+  initWifi();
+  initMqtt();
+  
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq");
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled");
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode");
+  client.setCallback(mqttCallback);
+  
+  pixels.setPixelColor(0, pixels.Color(0, 255, 0));
+  pixels.setPixelColor(1, pixels.Color(0, 255, 0));
+  pixels.show();
+  
+  delay(500);
+  
+  pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+  pixels.setPixelColor(1, pixels.Color(0, 0, 0));
+  pixels.show();
 }
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  if ((char) payload[0] == '1') {
-    digitalWrite(BUILTIN_LED, LOW);
-  } else {
-    digitalWrite(BUILTIN_LED, HIGH);
+void mqttCallback(char* topic_b, byte* payload, unsigned int length){
+  if(length < 5){
+    return;
   }
-}
-
-void reconnect() {
-  while (!client.connected()) {
-    if (client.connect(KUB_ID)) {
-      char topic[46];
-      sprintf(topic, "kub/%s/hello", KUB_ID);
-      client.publish(topic, "hello");
-      
-      char topic2[48];
-      sprintf(topic2, "kub/%s/request", KUB_ID);
-      client.subscribe(topic2);
-    } else {
-      delay(5000);
+  byte protocolVersion = payload[0];
+  uint32_t payloadLength = payload[4] + (payload[3] << 8) + (payload[2] << 16) + (payload[1] << 24);
+  String topic = String(topic_b);
+  if(String(topic) == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq"){
+    if(payloadLength < 3){
+      return;
     }
+    byte request = payload[5];
+    uint32_t temp = (uint32_t) getTemperature();
+    byte* response = new byte[11]{1, 0, 0, 0, 6, payload[6], payload[7], (temp >> 24) & 0xFF, (temp >> 16) & 0xFF, (temp >> 8) & 0xFF, temp & 0xFF};
+    client.publish("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubres", response, 11);
+  }else if(String(topic) == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled"){
+    if(payloadLength < 4){
+      return;
+    }
+    if(mode == 0){
+      byte ledid = payload[5];
+      byte r = payload[6];
+      byte g = payload[7];
+      byte b = payload[8];
+      pixels.setPixelColor(ledid, pixels.Color(r, g, b));
+      pixels.show();
+    }
+  }else if(topic == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode"){
+    if(payloadLength < 1){
+      return;
+    }
+    mode = payload[5];
   }
 }
 
 void loop() {
-  //if(!client.connected()){
-  //  reconnect();
-  //}
-  //client.loop();
-  
-  float temperature = getTemp();
-  Serial.println(temperature);
- 
-  delay(100);
+  wifiLoop();
+  refreshMode();
 }
 
-float getTemp(){
- //returns the temperature from one DS18S20 in DEG Celsius
-
- byte data[12];
- byte addr[8];
-
- if ( !ds.search(addr)) {
-   //no more sensors on chain, reset search
-   ds.reset_search();
-   return -1000;
- }
-
- if ( OneWire::crc8( addr, 7) != addr[7]) {
-   Serial.println("CRC is not valid!");
-   return -1000;
- }
-
- if ( addr[0] != 0x10 && addr[0] != 0x28) {
-   Serial.print("Device is not recognized");
-   return -1000;
- }
-
- ds.reset();
- ds.select(addr);
- ds.write(0x44,1); // start conversion, with parasite power on at the end
-
- byte present = ds.reset();
- ds.select(addr);  
- ds.write(0xBE); // Read Scratchpad
-
- 
- for (int i = 0; i < 9; i++) { // we need 9 bytes
-  data[i] = ds.read();
- }
- 
- ds.reset_search();
- 
- byte MSB = data[1];
- byte LSB = data[0];
-
- float tempRead = ((MSB << 8) | LSB); //using two's compliment
- float TemperatureSum = tempRead / 16;
- 
- return TemperatureSum;
- 
+void refreshMode(){
+  if(mode == 0){
+    
+  }else if(mode == 1){
+    float temp = getTemperature();
+    if(temp > 65){
+      pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+      pixels.setPixelColor(1, pixels.Color(255, 0, 0));
+    }else if(temp < 30){
+      pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+      pixels.setPixelColor(1, pixels.Color(0, 0, 255));
+    }else{
+      float factor = (temp - 30) / (float) 35;
+      byte value = (factor * 255);
+      pixels.setPixelColor(0, pixels.Color(value,0,255 - value));
+      pixels.setPixelColor(1, pixels.Color(value,0,255 - value));
+    }
+    pixels.show();
+    delay(100);
+  }
 }
-
 
