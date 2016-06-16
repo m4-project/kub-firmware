@@ -19,6 +19,7 @@ void setup() {
   // Initialise the OneWire protocol for the temperature sensor and connect to wlan/mqtt
   setupTemperatureSensor();
   initWifi();
+  // initWifiWPS(); -- WPS Is considered harmful. It does work, but i do not have any WPS-enabled equipment. Also, for the presentation, we use the hardcoded SSID
   initMqtt();
   
   // Subscribe on the topics

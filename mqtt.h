@@ -16,6 +16,27 @@ void initWifi(){
   Serial.println("Connected to wifi");
 }
 
+void initWifiWPS(){
+  WiFi.begin("", ""); // This tries to connect to the last saved credentials
+  delay(4000);
+
+  while(WiFi.status() != WL_CONNECTED){
+    // If connecting to a saved SSID was not possible
+    WiFi.beginWPSConfig();
+    delay(3000);
+
+    if(WiFi.status() == WL_CONNECTED){
+      if (client.connect("Kub/c90141cb-fff5-4c90-b917-de66816dee9f", "", "")) {
+        // Connected to the broker. Subscribe to all topics we need
+        client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq");
+        client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled");
+        client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode");
+        Serial.println("Connected to mqtt");
+      }
+    }
+  }
+}
+
 void wifiLoop(){
   // If we are not connected or when the connection has been closed
   while (!client.connected()) {
