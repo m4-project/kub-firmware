@@ -17,11 +17,11 @@ void initWifi(){
 void wifiLoop(){
   while (!client.connected()) {
     Serial.println("Attempting MQTT connection...");
-    if (client.connect("ESP8266Client", "", "")) {
+    if (client.connect("Kub/c90141cb-fff5-4c90-b917-de66816dee9f", "", "")) {
       //Connected
-      client.subscribe("kub/1234/kubreq");
-      client.subscribe("kub/1234/setled");
-      client.subscribe("kub/1234/setmode");
+      client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq");
+      client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled");
+      client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode");
       Serial.println("Connected to mqtt");
     } else {
       //Failed

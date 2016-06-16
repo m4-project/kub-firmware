@@ -14,13 +14,15 @@ void setup() {
   Serial.begin(115200);
   pixels.begin();
   
+  pinMode(4, INPUT);
+  
   setupTemperatureSensor();
   initWifi();
   initMqtt();
   
-  client.subscribe("kub/1234/kubreq");
-  client.subscribe("kub/1234/setled");
-  client.subscribe("kub/1234/setmode");
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq");
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled");
+  client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode");
   client.setCallback(mqttCallback);
   
   pixels.setPixelColor(0, pixels.Color(0, 255, 0));
@@ -41,21 +43,15 @@ void mqttCallback(char* topic_b, byte* payload, unsigned int length){
   byte protocolVersion = payload[0];
   uint32_t payloadLength = payload[4] + (payload[3] << 8) + (payload[2] << 16) + (payload[1] << 24);
   String topic = String(topic_b);
-  if(String(topic) == "kub/1234/kubreq"){
+  if(String(topic) == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq"){
     if(payloadLength < 3){
       return;
     }
     byte request = payload[5];
     uint32_t temp = (uint32_t) getTemperature();
-    byte* response = new byte[6];
-    response[0] = payload[6];
-    response[1] = payload[7];
-    response[2] = (temp >> 24) & 0xFF;
-    response[3] = (temp >> 16) & 0xFF;
-    response[4] = (temp >> 8) & 0xFF;
-    response[5] = temp & 0xFF;
-    client.publish("kub/1234/kubres", response, true);
-  }else if(String(topic) == "kub/1234/setled"){
+    byte* response = new byte[11]{1, 0, 0, 0, 6, payload[6], payload[7], (temp >> 24) & 0xFF, (temp >> 16) & 0xFF, (temp >> 8) & 0xFF, temp & 0xFF};
+    client.publish("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubres", response, 11);
+  }else if(String(topic) == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled"){
     if(payloadLength < 4){
       return;
     }
@@ -67,7 +63,7 @@ void mqttCallback(char* topic_b, byte* payload, unsigned int length){
       pixels.setPixelColor(ledid, pixels.Color(r, g, b));
       pixels.show();
     }
-  }else if(topic == "kub/1234/setmode"){
+  }else if(topic == "kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode"){
     if(payloadLength < 1){
       return;
     }
