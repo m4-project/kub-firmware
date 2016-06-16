@@ -8,7 +8,7 @@
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(2, 14, NEO_GRB + NEO_KHZ800);
 
-byte mode = 1;
+byte mode = 1; // By default on mode 1 (Automatic led control based on temperature)
 
 void setup() {
   Serial.begin(115200);
@@ -16,15 +16,18 @@ void setup() {
   
   pinMode(4, INPUT);
   
+  // Initialise the OneWire protocol for the temperature sensor and connect to wlan/mqtt
   setupTemperatureSensor();
   initWifi();
   initMqtt();
   
+  // Subscribe on the topics
   client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/kubreq");
   client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setled");
   client.subscribe("kub/c90141cb-fff5-4c90-b917-de66816dee9f/setmode");
   client.setCallback(mqttCallback);
   
+  // Flash the leds green, so the user knows we are done initialising
   pixels.setPixelColor(0, pixels.Color(0, 255, 0));
   pixels.setPixelColor(1, pixels.Color(0, 255, 0));
   pixels.show();
@@ -36,6 +39,7 @@ void setup() {
   pixels.show();
 }
 
+// Callback for the MQTT client. Will handle any message sent by the broker
 void mqttCallback(char* topic_b, byte* payload, unsigned int length){
   if(length < 5){
     return;
@@ -72,22 +76,26 @@ void mqttCallback(char* topic_b, byte* payload, unsigned int length){
 }
 
 void loop() {
-  wifiLoop();
-  refreshMode();
+  wifiLoop(); // Check if wlan connection is still active, and try to receive data
+  refreshMode(); // Refresh the mode for the leds
 }
 
 void refreshMode(){
   if(mode == 0){
-    
+    // Mode 0 is manual control. No special handling needed
   }else if(mode == 1){
+  	// Mode 1 is automatic temperature control for the leds. Scaling between 30 and 65 degrees celsius
     float temp = getTemperature();
     if(temp > 65){
+      // If hotter than 65 degrees, just make the leds red to prevent byte overflows
       pixels.setPixelColor(0, pixels.Color(255, 0, 0));
       pixels.setPixelColor(1, pixels.Color(255, 0, 0));
     }else if(temp < 30){
+      // If colder than 30 degrees, just make the leds blue to prevent byte underflows
       pixels.setPixelColor(0, pixels.Color(0, 0, 255));
       pixels.setPixelColor(1, pixels.Color(0, 0, 255));
     }else{
+      // Scale the color between 30 and 65 degrees
       float factor = (temp - 30) / (float) 35;
       byte value = (factor * 255);
       pixels.setPixelColor(0, pixels.Color(value,0,255 - value));
